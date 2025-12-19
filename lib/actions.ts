@@ -179,6 +179,76 @@ export async function getParticipantByName(eventId: string, name: string) {
   return { data };
 }
 
+export async function adminAddParticipant(eventId: string, name: string, adminToken: string) {
+  // Verify admin token
+  const { data: event } = await supabase
+    .from('events')
+    .select('admin_token, locked')
+    .eq('id', eventId)
+    .single();
+
+  if (!event || event.admin_token !== adminToken) {
+    return { error: 'Unauthorized' };
+  }
+
+  if (event.locked) {
+    return { error: 'Event is locked. No new participants can be added.' };
+  }
+
+  // Check for duplicate name
+  const { data: existing } = await supabase
+    .from('participants')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('name', name.trim())
+    .single();
+
+  if (existing) {
+    return { error: 'A participant with this name already exists.' };
+  }
+
+  const { data, error } = await supabase
+    .from('participants')
+    .insert({ event_id: eventId, name: name.trim() })
+    .select()
+    .single();
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { data };
+}
+
+export async function removeParticipant(eventId: string, participantId: string, adminToken: string) {
+  // Verify admin token
+  const { data: event } = await supabase
+    .from('events')
+    .select('admin_token, locked')
+    .eq('id', eventId)
+    .single();
+
+  if (!event || event.admin_token !== adminToken) {
+    return { error: 'Unauthorized' };
+  }
+
+  if (event.locked) {
+    return { error: 'Event is locked. Participants cannot be removed.' };
+  }
+
+  const { error } = await supabase
+    .from('participants')
+    .delete()
+    .eq('id', participantId)
+    .eq('event_id', eventId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
 // =====================================================
 // ASSIGNMENT ACTIONS
 // =====================================================
@@ -329,4 +399,47 @@ export async function getEventData(eventId: string) {
       participants: participants || [],
     }
   };
+}
+
+export async function getAdminOverview(eventId: string, adminToken: string) {
+  // Verify admin token
+  const { data: event } = await supabase
+    .from('events')
+    .select('admin_token')
+    .eq('id', eventId)
+    .single();
+
+  if (!event || event.admin_token !== adminToken) {
+    return { error: 'Unauthorized' };
+  }
+
+  // Fetch participants with wishlist counts
+  const { data: participants } = await supabase
+    .from('participants')
+    .select('id, name, created_at')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: true });
+
+  if (!participants) {
+    return { data: { participants: [] } };
+  }
+
+  // Get wishlist counts for each participant
+  const participantsWithDetails = await Promise.all(
+    participants.map(async (p) => {
+      const { count } = await supabase
+        .from('wishlists')
+        .select('*', { count: 'exact', head: true })
+        .eq('participant_id', p.id);
+
+      return {
+        id: p.id,
+        name: p.name,
+        wishlistCount: count || 0,
+        joinedAt: p.created_at,
+      };
+    })
+  );
+
+  return { data: { participants: participantsWithDetails } };
 }

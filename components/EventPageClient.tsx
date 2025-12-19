@@ -4,12 +4,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   addParticipant, 
+  adminAddParticipant,
+  removeParticipant,
   generateAssignments, 
   getMyAssignment, 
   getWishlist,
   addWishlistItem,
   getEventData,
-  resetEvent
+  resetEvent,
+  getAdminOverview
 } from '@/lib/actions';
 import type { Event, Participant, WishlistItem } from '@/lib/supabase';
 import Snowfall from 'react-snowfall';
@@ -20,6 +23,13 @@ type Props = {
   eventId: string;
   initialEvent: Event;
   initialParticipants: Participant[];
+};
+
+type AdminParticipantInfo = {
+  id: string;
+  name: string;
+  wishlistCount: number;
+  joinedAt: string;
 };
 
 const ADMIN_TOKEN_KEY = 'secret-santa-admin-';
@@ -48,6 +58,11 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
   const [myWishlist, setMyWishlist] = useState<WishlistItem[]>([]);
   const [theirWishlist, setTheirWishlist] = useState<WishlistItem[]>([]);
   const [wishlistItem, setWishlistItem] = useState('');
+
+  // Admin state
+  const [adminAddName, setAdminAddName] = useState('');
+  const [isAdminAdding, setIsAdminAdding] = useState(false);
+  const [adminOverview, setAdminOverview] = useState<AdminParticipantInfo[]>([]);
 
   // Check if user is admin or returning participant
   useEffect(() => {
@@ -93,10 +108,21 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
     }
   }, [currentParticipant]);
 
+  // Fetch admin overview
+  const fetchAdminOverview = useCallback(async () => {
+    if (!isAdmin || !adminToken) return;
+    
+    const { data } = await getAdminOverview(eventId, adminToken);
+    if (data?.participants) {
+      setAdminOverview(data.participants);
+    }
+  }, [isAdmin, adminToken, eventId]);
+
   useEffect(() => {
     fetchAssignment();
     fetchMyWishlist();
-  }, [fetchAssignment, fetchMyWishlist]);
+    fetchAdminOverview();
+  }, [fetchAssignment, fetchMyWishlist, fetchAdminOverview]);
 
   // Poll for updates
   useEffect(() => {
@@ -111,10 +137,15 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
           fetchAssignment();
         }
       }
+      
+      // Refresh admin overview
+      if (isAdmin && adminToken) {
+        fetchAdminOverview();
+      }
     }, 5000);
 
     return () => clearInterval(pollInterval);
-  }, [eventId, event.locked, fetchAssignment]);
+  }, [eventId, event.locked, fetchAssignment, isAdmin, adminToken, fetchAdminOverview]);
 
   // Handle joining the event
   const handleJoin = async () => {
@@ -201,7 +232,51 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
     setMyWishlist([]);
     setTheirWishlist([]);
     setCurrentParticipant(null);
+    setAdminOverview([]);
     localStorage.removeItem(PARTICIPANT_KEY + eventId);
+  };
+
+  // Admin: Add participant
+  const handleAdminAddParticipant = async () => {
+    if (!adminToken || !adminAddName.trim()) return;
+    
+    setIsAdminAdding(true);
+    setError(null);
+
+    const { data, error } = await adminAddParticipant(eventId, adminAddName.trim(), adminToken);
+    
+    if (error) {
+      setError(error);
+      setIsAdminAdding(false);
+      return;
+    }
+
+    if (data) {
+      setParticipants([...participants, data]);
+      setAdminAddName('');
+      fetchAdminOverview();
+    }
+    
+    setIsAdminAdding(false);
+  };
+
+  // Admin: Remove participant
+  const handleRemoveParticipant = async (participantId: string) => {
+    if (!adminToken) return;
+    
+    if (!confirm('Remove this participant from the event?')) {
+      return;
+    }
+
+    const { error } = await removeParticipant(eventId, participantId, adminToken);
+    
+    if (error) {
+      setError(error);
+      return;
+    }
+
+    setParticipants(participants.filter(p => p.id !== participantId));
+    setAdminOverview(adminOverview.filter(p => p.id !== participantId));
   };
 
   // Copy share link
@@ -412,6 +487,160 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
                     </p>
                   )}
                 </section>
+
+                {/* Admin: Add Participants & Overview */}
+                {isAdmin && !event.locked && (
+                  <section className="frost-panel rounded-xl p-6 md:p-8">
+                    <div className="flex items-center gap-2 mb-5">
+                      <svg className="w-5 h-5" style={{ color: 'var(--ice)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <h2 
+                        className="text-sm font-medium uppercase tracking-wider"
+                        style={{ color: 'rgba(255, 255, 255, 0.7)', letterSpacing: '0.1em' }}
+                      >
+                        Admin Controls
+                      </h2>
+                    </div>
+
+                    {/* Add participant form */}
+                    <div className="mb-6">
+                      <p className="text-sm mb-3" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                        Add participants manually
+                      </p>
+                      <div className="flex gap-3">
+                        <input
+                          type="text"
+                          value={adminAddName}
+                          onChange={(e) => setAdminAddName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAdminAddParticipant()}
+                          placeholder="Participant name"
+                          disabled={isAdminAdding}
+                          className="flex-1 px-4 py-3 text-base rounded-lg transition-all duration-200"
+                          style={{ 
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: 'white',
+                            outline: 'none',
+                          }}
+                        />
+                        <button 
+                          onClick={handleAdminAddParticipant}
+                          disabled={isAdminAdding || !adminAddName.trim()}
+                          className="px-5 py-3 text-sm font-medium rounded-lg transition-all duration-200"
+                          style={{ 
+                            background: isAdminAdding || !adminAddName.trim() 
+                              ? 'rgba(255, 255, 255, 0.1)' 
+                              : 'rgba(61, 122, 95, 0.5)',
+                            color: isAdminAdding || !adminAddName.trim() ? 'rgba(255, 255, 255, 0.3)' : 'white',
+                            cursor: isAdminAdding || !adminAddName.trim() ? 'not-allowed' : 'pointer',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                          }}
+                        >
+                          {isAdminAdding ? 'Adding...' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Participant list with remove buttons */}
+                    {adminOverview.length > 0 && (
+                      <div>
+                        <p className="text-sm mb-3" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                          Manage participants ({adminOverview.length})
+                        </p>
+                        <ul className="space-y-2">
+                          {adminOverview.map((p) => (
+                            <li 
+                              key={p.id}
+                              className="flex items-center justify-between py-2.5 px-4 rounded-lg"
+                              style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm" style={{ color: 'white' }}>{p.name}</span>
+                                {p.wishlistCount > 0 && (
+                                  <span 
+                                    className="text-xs px-2 py-0.5 rounded-full"
+                                    style={{ background: 'rgba(61, 122, 95, 0.3)', color: 'var(--pine-light)' }}
+                                  >
+                                    {p.wishlistCount} wishlist item{p.wishlistCount !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleRemoveParticipant(p.id)}
+                                className="p-1.5 rounded-lg transition-all duration-200 hover:bg-red-500/20"
+                                style={{ color: 'rgba(255, 255, 255, 0.4)' }}
+                                title="Remove participant"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Admin Overview when locked */}
+                {isAdmin && event.locked && adminOverview.length > 0 && (
+                  <section className="frost-panel rounded-xl p-6 md:p-8">
+                    <div className="flex items-center gap-2 mb-5">
+                      <svg className="w-5 h-5" style={{ color: 'var(--ice)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <h2 
+                        className="text-sm font-medium uppercase tracking-wider"
+                        style={{ color: 'rgba(255, 255, 255, 0.7)', letterSpacing: '0.1em' }}
+                      >
+                        Participant Overview
+                      </h2>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div 
+                        className="p-4 rounded-lg text-center"
+                        style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                      >
+                        <p className="text-2xl font-light" style={{ color: 'white' }}>{adminOverview.length}</p>
+                        <p className="text-xs mt-1" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Participants</p>
+                      </div>
+                      <div 
+                        className="p-4 rounded-lg text-center"
+                        style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                      >
+                        <p className="text-2xl font-light" style={{ color: 'white' }}>
+                          {adminOverview.filter(p => p.wishlistCount > 0).length}
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>With wishlists</p>
+                      </div>
+                    </div>
+
+                    <ul className="mt-4 space-y-2">
+                      {adminOverview.map((p) => (
+                        <li 
+                          key={p.id}
+                          className="flex items-center justify-between py-2 px-3 rounded-lg text-sm"
+                          style={{ background: 'rgba(255, 255, 255, 0.03)' }}
+                        >
+                          <span style={{ color: 'white' }}>{p.name}</span>
+                          <span 
+                            className="flex items-center gap-1"
+                            style={{ color: p.wishlistCount > 0 ? 'var(--pine-light)' : 'rgba(255, 255, 255, 0.3)' }}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
+                            {p.wishlistCount}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
 
                 {/* Admin: Generate panel */}
                 {isAdmin && !event.locked && (
@@ -668,44 +897,26 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
                 </div>
               )}
 
-              {/* Prompt to select name if locked but no participant */}
-              {event.locked && !currentParticipant && (
-                <div className="frost-panel rounded-xl p-6 md:p-8">
+              {/* Message for visitors who missed joining before lock */}
+              {event.locked && !currentParticipant && !isAdmin && (
+                <div className="frost-panel rounded-xl p-6 md:p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(255, 255, 255, 0.1)' }}>
+                    <svg className="w-8 h-8" style={{ color: 'rgba(255, 255, 255, 0.5)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
                   <h2 
-                    className="text-sm font-medium uppercase tracking-wider mb-4"
-                    style={{ color: 'rgba(255, 255, 255, 0.7)', letterSpacing: '0.1em' }}
+                    className="text-lg font-medium mb-2"
+                    style={{ color: 'white' }}
                   >
-                    Find Your Assignment
+                    Event Already Started
                   </h2>
                   <p className="text-sm mb-4" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                    Select your name to see who you&apos;re buying for
+                    Assignments have already been generated. Only participants who joined before the event was locked can view their assignments.
                   </p>
-                  <select
-                    onChange={async (e) => {
-                      const selected = participants.find(p => p.id === e.target.value);
-                      if (selected) {
-                        setCurrentParticipant(selected);
-                        localStorage.setItem(PARTICIPANT_KEY + eventId, selected.id);
-                      }
-                    }}
-                    className="w-full px-4 py-3.5 text-base appearance-none cursor-pointer rounded-lg transition-all duration-200"
-                    style={{ 
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='rgba(255,255,255,0.5)'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '20px',
-                    }}
-                  >
-                    <option value="">Select your name</option>
-                    {participants.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                  <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.3)' }}>
+                    If you&apos;re a participant, try using the same device and browser you used when you first joined.
+                  </p>
                 </div>
               )}
             </div>
