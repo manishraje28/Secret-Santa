@@ -27,10 +27,10 @@ export default function CreateEventPage() {
     }
 
     if (data) {
-      // Store admin token in localStorage
-      localStorage.setItem(ADMIN_TOKEN_KEY + data.id, data.admin_token);
-      // Redirect to the event page
-      router.push(`/event/${data.id}`);
+      // Store admin token in localStorage using short_code
+      localStorage.setItem(ADMIN_TOKEN_KEY + data.short_code, data.admin_token);
+      // Redirect to the event page using short_code
+      router.push(`/event/${data.short_code}`);
     }
   };
 

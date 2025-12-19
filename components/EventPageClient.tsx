@@ -85,7 +85,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
   const fetchAssignment = useCallback(async () => {
     if (!currentParticipant || !event.locked) return;
 
-    const { data } = await getMyAssignment(eventId, currentParticipant.id);
+    const { data } = await getMyAssignment(event.id, currentParticipant.id);
     if (data?.receiver) {
       const receiver = data.receiver as { id: string; name: string };
       setMyAssignment(receiver);
@@ -96,7 +96,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
         setTheirWishlist(wishlist);
       }
     }
-  }, [currentParticipant, event.locked, eventId]);
+  }, [currentParticipant, event.locked, event.id]);
 
   // Fetch my wishlist
   const fetchMyWishlist = useCallback(async () => {
@@ -112,11 +112,11 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
   const fetchAdminOverview = useCallback(async () => {
     if (!isAdmin || !adminToken) return;
     
-    const { data } = await getAdminOverview(eventId, adminToken);
+    const { data } = await getAdminOverview(event.id, adminToken);
     if (data?.participants) {
       setAdminOverview(data.participants);
     }
-  }, [isAdmin, adminToken, eventId]);
+  }, [isAdmin, adminToken, event.id]);
 
   useEffect(() => {
     fetchAssignment();
@@ -154,7 +154,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
     setIsJoining(true);
     setError(null);
 
-    const { data, error } = await addParticipant(eventId, joinName.trim());
+    const { data, error } = await addParticipant(event.id, joinName.trim());
     
     if (error) {
       setError(error);
@@ -179,7 +179,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
     setIsGenerating(true);
     setError(null);
 
-    const { error } = await generateAssignments(eventId, adminToken);
+    const { error } = await generateAssignments(event.id, adminToken);
     
     if (error) {
       setError(error);
@@ -219,7 +219,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
       return;
     }
 
-    const { error } = await resetEvent(eventId, adminToken);
+    const { error } = await resetEvent(event.id, adminToken);
     
     if (error) {
       setError(error);
@@ -243,7 +243,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
     setIsAdminAdding(true);
     setError(null);
 
-    const { data, error } = await adminAddParticipant(eventId, adminAddName.trim(), adminToken);
+    const { data, error } = await adminAddParticipant(event.id, adminAddName.trim(), adminToken);
     
     if (error) {
       setError(error);
@@ -268,7 +268,7 @@ export default function EventPageClient({ eventId, initialEvent, initialParticip
       return;
     }
 
-    const { error } = await removeParticipant(eventId, participantId, adminToken);
+    const { error } = await removeParticipant(event.id, participantId, adminToken);
     
     if (error) {
       setError(error);

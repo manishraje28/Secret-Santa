@@ -9,9 +9,9 @@ type Props = {
 export default async function EventPage({ params }: Props) {
   const { eventId } = await params;
   
-  // Validate UUID format
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(eventId)) {
+  // Validate short code format (8 alphanumeric characters)
+  const shortCodeRegex = /^[A-Za-z0-9]{6,12}$/;
+  if (!shortCodeRegex.test(eventId)) {
     notFound();
   }
 

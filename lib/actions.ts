@@ -22,11 +22,11 @@ export async function createEvent(name?: string) {
   return { data };
 }
 
-export async function getEvent(eventId: string) {
+export async function getEvent(shortCode: string) {
   const { data, error } = await supabase
     .from('events')
     .select('*')
-    .eq('id', eventId)
+    .eq('short_code', shortCode)
     .single();
 
   if (error) {
@@ -374,23 +374,23 @@ export async function removeWishlistItem(itemId: string) {
 // COMBINED DATA FETCHING
 // =====================================================
 
-export async function getEventData(eventId: string) {
-  // Fetch event
+export async function getEventData(shortCode: string) {
+  // Fetch event by short_code
   const { data: event, error: eventError } = await supabase
     .from('events')
     .select('*')
-    .eq('id', eventId)
+    .eq('short_code', shortCode)
     .single();
 
   if (eventError || !event) {
     return { error: 'Event not found' };
   }
 
-  // Fetch participants
+  // Fetch participants using the event's UUID
   const { data: participants } = await supabase
     .from('participants')
     .select('*')
-    .eq('event_id', eventId)
+    .eq('event_id', event.id)
     .order('created_at', { ascending: true });
 
   return {

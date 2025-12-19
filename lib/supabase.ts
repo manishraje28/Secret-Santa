@@ -12,6 +12,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Types matching our database schema
 export type Event = {
   id: string;
+  short_code: string;
   name: string;
   admin_token: string;
   locked: boolean;

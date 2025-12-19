@@ -7,10 +7,28 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =====================================================
+-- SHORT CODE GENERATION FUNCTION
+-- =====================================================
+CREATE OR REPLACE FUNCTION generate_short_code(length INT DEFAULT 8)
+RETURNS TEXT AS $$
+DECLARE
+  chars TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  result TEXT := '';
+  i INT;
+BEGIN
+  FOR i IN 1..length LOOP
+    result := result || substr(chars, floor(random() * length(chars) + 1)::INT, 1);
+  END LOOP;
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
 -- EVENTS TABLE
 -- =====================================================
 CREATE TABLE events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  short_code TEXT NOT NULL UNIQUE DEFAULT generate_short_code(8),
   name TEXT NOT NULL DEFAULT 'Secret Santa Event',
   admin_token UUID NOT NULL DEFAULT uuid_generate_v4(),
   locked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -20,6 +38,7 @@ CREATE TABLE events (
 
 -- Index for faster lookups
 CREATE INDEX idx_events_created_at ON events(created_at DESC);
+CREATE INDEX idx_events_short_code ON events(short_code);
 
 -- =====================================================
 -- PARTICIPANTS TABLE
