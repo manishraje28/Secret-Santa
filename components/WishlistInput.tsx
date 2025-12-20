@@ -12,7 +12,7 @@ export default function WishlistInput({
   onAddItem,
 }: Props) {
   const [item, setItem] = useState("");
-
+//for wishlist input component
   return (
     <section>
       <div className="flex items-center gap-2 mb-5">
@@ -27,7 +27,7 @@ export default function WishlistInput({
         </h3>
       </div>
 
-      <p 
+      <p   
         className="text-sm mb-4"
         style={{ color: 'rgba(255, 255, 255, 0.5)' }}
       >
