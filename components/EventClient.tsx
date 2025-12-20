@@ -84,7 +84,7 @@ export default function EventClient() {
                 />
             </div>
 
-            {/* Ambient glow */}
+            {/* Ambient glow so that it looks good */}
             <div className="fixed inset-0 pointer-events-none z-0">
                 <div 
                     className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full opacity-20"
