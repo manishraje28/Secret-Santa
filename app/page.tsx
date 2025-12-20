@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Snowfall from "react-snowfall";
+import Snowfall from "react-snowfall"; //for snowfall effect
 
 export default function Home() {
   return (
